@@ -10,10 +10,31 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def sign_data(private_key, data: bytes) -> bytes:
+    """
+    Sign the given data using the provided ECDSA private key and SHA-256.
+
+    Args:
+        private_key: An Elliptic Curve private key object.
+        data (bytes): Data to sign.
+
+    Returns:
+        bytes: The signature of the data.
+    """
     signature = private_key.sign(data, ec.ECDSA(hashes.SHA256()))
     return signature
 
 def verify_signature(public_key, signature: bytes, data: bytes) -> bool:
+    """
+    Verify a signature for the given data using the ECDSA public key.
+
+    Args:
+        public_key: An Elliptic Curve public key object.
+        signature (bytes): Signature to verify.
+        data (bytes): Data that was signed.
+
+    Returns:
+        bool: True if the signature is valid, False otherwise.
+    """
     try:
         public_key.verify(signature, data, ec.ECDSA(hashes.SHA256()))
         return True
@@ -22,7 +43,10 @@ def verify_signature(public_key, signature: bytes, data: bytes) -> bool:
 
 def get_test_vectors():
     """
-    מחזיר רשימה של וקטורי בדיקה שונים - כל וקטור הוא מילון עם מפתח, IV והודעה.
+    Provides a list of test vectors containing keys, IVs, and plaintexts for encryption tests.
+
+    Returns:
+        list of dict: Each dict contains 'key' (bytes), 'iv' (bytes), and 'plaintext' (bytes).
     """
     return [
         {
@@ -53,6 +77,15 @@ def get_test_vectors():
     ]
 
 def run_test_vector(vector_id, key, iv, plaintext):
+    """
+    Runs encryption and decryption on a test vector and validates correctness.
+
+    Args:
+        vector_id (int): Identifier for the test vector.
+        key (bytes): AES key.
+        iv (bytes): Initialization vector (nonce).
+        plaintext (bytes): Plaintext message to encrypt and decrypt.
+    """
     print(f"\n=== Running Test Vector #{vector_id} ===")
     print(f"Key (hex): {key.hex()}")
     print(f"IV (hex): {iv.hex()}")
@@ -70,11 +103,25 @@ def run_test_vector(vector_id, key, iv, plaintext):
     print(f"[✓] Test vector #{vector_id} passed.")
 
 def test_vector():
+    """
+    Runs all predefined test vectors through the encryption/decryption process.
+    """
     vectors = get_test_vectors()
     for i, vector in enumerate(vectors, start=1):
         run_test_vector(i, vector["key"], vector["iv"], vector["plaintext"])
 
 def encrypt_message(key, plaintext, iv=None):
+    """
+    Encrypt a plaintext message using AES-GCM with the provided key and IV.
+
+    Args:
+        key (bytes): AES symmetric key.
+        plaintext (bytes): Message to encrypt.
+        iv (bytes, optional): Initialization vector (nonce). If None, generates random 12 bytes.
+
+    Returns:
+        tuple: (iv (bytes), ciphertext (bytes), tag (bytes))
+    """
     if iv is None:
         iv = os.urandom(12)  # 96-bit nonce for GCM
 
@@ -86,6 +133,16 @@ def encrypt_message(key, plaintext, iv=None):
     return iv, ciphertext, encryptor.tag
 
 def derive_key(shared_secret, salt):
+    """
+    Derive a symmetric AES key from the ECDH shared secret using HKDF with SHA-256.
+
+    Args:
+        shared_secret (bytes): Shared secret from ECDH key exchange.
+        salt (bytes): Salt for HKDF.
+
+    Returns:
+        bytes: Derived symmetric key of length 32 bytes.
+    """
     return HKDF(
         algorithm=hashes.SHA256(),
         length=32,
@@ -94,6 +151,18 @@ def derive_key(shared_secret, salt):
     ).derive(shared_secret)
 
 def decrypt_message(key, iv, ciphertext, tag):
+    """
+    Decrypt ciphertext encrypted with AES-GCM.
+
+    Args:
+        key (bytes): AES symmetric key.
+        iv (bytes): Initialization vector (nonce).
+        ciphertext (bytes): Encrypted message.
+        tag (bytes): Authentication tag.
+
+    Returns:
+        bytes: Decrypted plaintext.
+    """
     decryptor = Cipher(
         algorithms.AES(key),
         modes.GCM(iv, tag)
@@ -101,28 +170,89 @@ def decrypt_message(key, iv, ciphertext, tag):
     return decryptor.update(ciphertext) + decryptor.finalize()
 
 def generate_public_and_private_key():
+    """
+    Generate an ECDSA private and public key pair using the SECP256R1 curve.
+
+    Returns:
+        tuple: (private_key, public_key)
+    """
     private_key = ec.generate_private_key(ec.SECP256R1())
     public_key = private_key.public_key()
     return private_key, public_key
 
 def serialize_public_key(public_key, encoding=serialization.Encoding.DER, format=serialization.PublicFormat.SubjectPublicKeyInfo):
+    """
+    Serialize a public key to bytes in the specified encoding and format.
+
+    Args:
+        public_key: Elliptic Curve public key object.
+        encoding: Encoding type (DER or PEM).
+        format: Public key format.
+
+    Returns:
+        bytes: Serialized public key.
+    """
     return public_key.public_bytes(
         encoding=encoding,
         format=format
     )
 
 def verify_key_signatures(pub_key_a, sig_a, data_a, pub_key_b, sig_b, data_b) -> bool:
+    """
+    Verify two signatures on their respective data with the given public keys.
+
+    Args:
+        pub_key_a: Public key A.
+        sig_a (bytes): Signature from private key A.
+        data_a (bytes): Data signed by private key A.
+        pub_key_b: Public key B.
+        sig_b (bytes): Signature from private key B.
+        data_b (bytes): Data signed by private key B.
+
+    Returns:
+        bool: True if both signatures are valid, False otherwise.
+    """
     valid_a = verify_signature(pub_key_a, sig_a, data_a)
     valid_b = verify_signature(pub_key_b, sig_b, data_b)
     return valid_a and valid_b
 
 def shared_secrets_match(secret1: bytes, secret2: bytes) -> bool:
+    """
+    Check if two shared secrets are identical.
+
+    Args:
+        secret1 (bytes): First shared secret.
+        secret2 (bytes): Second shared secret.
+
+    Returns:
+        bool: True if secrets match, False otherwise.
+    """
     return secret1 == secret2
 
 def generate_salt(length: int = 16) -> bytes:
+    """
+    Generate a cryptographically secure random salt.
+
+    Args:
+        length (int): Length of salt in bytes. Default is 16.
+
+    Returns:
+        bytes: Randomly generated salt.
+    """
     return os.urandom(length)
 
 def pack_encrypted_message(iv: bytes, ciphertext: bytes, tag: bytes) -> str:
+    """
+    Pack the encrypted message components into a JSON string with base64 encoding.
+
+    Args:
+        iv (bytes): Initialization vector.
+        ciphertext (bytes): Encrypted data.
+        tag (bytes): Authentication tag.
+
+    Returns:
+        str: JSON string containing base64 encoded parts.
+    """
     return json.dumps({
         "iv": base64.b64encode(iv).decode(),
         "ciphertext": base64.b64encode(ciphertext).decode(),
@@ -130,6 +260,15 @@ def pack_encrypted_message(iv: bytes, ciphertext: bytes, tag: bytes) -> str:
     })
 
 def unpack_encrypted_message(packet: str) -> tuple[bytes, bytes, bytes]:
+    """
+    Unpack a JSON string with base64 encoded encrypted message parts.
+
+    Args:
+        packet (str): JSON string containing the encrypted message.
+
+    Returns:
+        tuple: (iv (bytes), ciphertext (bytes), tag (bytes))
+    """
     decoded = json.loads(packet)
     iv = base64.b64decode(decoded["iv"])
     ciphertext = base64.b64decode(decoded["ciphertext"])
@@ -137,6 +276,12 @@ def unpack_encrypted_message(packet: str) -> tuple[bytes, bytes, bytes]:
     return iv, ciphertext, tag
 
 def simulate_communication():
+    """
+    Simulates a secure communication protocol between two parties using ECDSA signatures,
+    ECDH key exchange, HKDF key derivation, AES-GCM encryption, and message packing/unpacking.
+
+    Prints the steps and outcomes of each phase.
+    """
     print("=== Key Generation ===")
 
     # Generate private and public keys for Party B
@@ -218,6 +363,14 @@ def simulate_communication():
     print("\n=== End of Communication ===")
 
 def plot_elliptic_curve(a, b, x_range=(-3, 3)):
+    """
+    Plot an elliptic curve defined by y^2 = x^3 + a*x + b over the specified x range.
+
+    Args:
+        a (float): Coefficient 'a' in the elliptic curve equation.
+        b (float): Coefficient 'b' in the elliptic curve equation.
+        x_range (tuple): Range of x values (min, max) to plot.
+    """
     x = np.linspace(x_range[0], x_range[1], 400)
     y_squared = x ** 3 + a * x + b
     y_positive = np.sqrt(np.clip(y_squared, 0, None))
@@ -232,11 +385,35 @@ def plot_elliptic_curve(a, b, x_range=(-3, 3)):
     plt.legend()
     plt.show()
 
-def extract_public_key_point(pub_key):
-    numbers = pub_key.public_numbers()
-    return numbers.x, numbers.y
+def extract_public_key_point(pubkey):
+    """
+    Extract the (x, y) coordinates of an elliptic curve public key point.
+
+    Args:
+        pubkey: Elliptic curve public key object.
+
+    Returns:
+        tuple: (x, y) as integers.
+    """
+    numbers = pubkey.public_numbers()
+    return (numbers.x, numbers.y)
+
 
 def demo_elliptic_curve_and_public_key():
+    def demo_elliptic_curve_and_public_key():
+        """
+        Demonstrates plotting an elliptic curve and extracting the public key point from a generated key pair.
+
+        Steps:
+        1. Defines an elliptic curve with parameters a = -3 and b = 5.
+        2. Plots the elliptic curve based on these parameters.
+        3. Generates an elliptic curve private and public key pair.
+        4. Extracts the (x, y) coordinates from the generated public key.
+        5. Prints the public key point coordinates.
+
+        This function is intended as a simple demonstration of elliptic curve properties
+        and public key extraction.
+        """
     a = -3
     b = 5
     plot_elliptic_curve(a, b)
@@ -247,6 +424,11 @@ def demo_elliptic_curve_and_public_key():
 
 
 if __name__ == "__main__":
+    # Run demonstration of secure communication protocol.
     simulate_communication()
+
+    # Run AES-GCM encryption/decryption test vectors.
     test_vector()
+
+    # Demonstrate elliptic curve plotting and public key extraction.
     demo_elliptic_curve_and_public_key()
