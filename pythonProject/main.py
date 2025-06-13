@@ -1,4 +1,3 @@
-from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -6,6 +5,9 @@ from cryptography.exceptions import InvalidSignature
 import os
 import base64
 import json
+from cryptography.hazmat.primitives.asymmetric import ec
+import matplotlib.pyplot as plt
+import numpy as np
 
 def sign_data(private_key, data: bytes) -> bytes:
     signature = private_key.sign(data, ec.ECDSA(hashes.SHA256()))
@@ -215,7 +217,36 @@ def simulate_communication():
 
     print("\n=== End of Communication ===")
 
+def plot_elliptic_curve(a, b, x_range=(-3, 3)):
+    x = np.linspace(x_range[0], x_range[1], 400)
+    y_squared = x ** 3 + a * x + b
+    y_positive = np.sqrt(np.clip(y_squared, 0, None))
+    y_negative = -y_positive
+
+    plt.plot(x, y_positive, label="Elliptic Curve")
+    plt.plot(x, y_negative)
+    plt.title("Elliptic Curve y^2 = x^3 + ax + b")
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+def extract_public_key_point(pub_key):
+    numbers = pub_key.public_numbers()
+    return numbers.x, numbers.y
+
+def demo_elliptic_curve_and_public_key():
+    a = -3
+    b = 5
+    plot_elliptic_curve(a, b)
+
+    priv, pub = generate_public_and_private_key()
+    x, y = extract_public_key_point(pub)
+    print(f"Public key point on curve: x={x}, y={y}")
+
 
 if __name__ == "__main__":
     simulate_communication()
     test_vector()
+    demo_elliptic_curve_and_public_key()
