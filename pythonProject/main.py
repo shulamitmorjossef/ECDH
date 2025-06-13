@@ -18,38 +18,64 @@ def verify_signature(public_key, signature: bytes, data: bytes) -> bool:
     except InvalidSignature:
         return False
 
-def run_test_vector():
-    print("\n=== Running Test Vector ===")
-    # וקטור בדיקה: מפתח סימטרי ידוע, IV ידוע, והודעה קבועה
-    key = b'\x00' * 32  # 256-bit key filled with zeros
-    iv = b'\x01' * 12   # 96-bit nonce filled with ones
-    plaintext = b'Test vector message'
+def get_test_vectors():
+    """
+    מחזיר רשימה של וקטורי בדיקה שונים - כל וקטור הוא מילון עם מפתח, IV והודעה.
+    """
+    return [
+        {
+            "key": b'\x00' * 32,
+            "iv": b'\x01' * 12,
+            "plaintext": b'Test vector message'
+        },
+        {
+            "key": b'\x0f' * 32,
+            "iv": b'\x02' * 12,
+            "plaintext": b'Another test message with different key and IV'
+        },
+        {
+            "key": b'\xff' * 32,
+            "iv": b'\x00' * 12,
+            "plaintext": b''
+        },
+        {
+            "key": b'\x01' * 32,
+            "iv": b'\x0a' * 12,
+            "plaintext": b'Short'
+        },
+        {
+            "key": b'\x12' * 32,
+            "iv": b'\x0b' * 12,
+            "plaintext": b'A longer message that tests encryption and decryption over more bytes'
+        }
+    ]
 
-    # הצפנה
-    encryptor = Cipher(
-        algorithms.AES(key),
-        modes.GCM(iv)
-    ).encryptor()
-    ciphertext = encryptor.update(plaintext) + encryptor.finalize()
-    tag = encryptor.tag
+def run_test_vector(vector_id, key, iv, plaintext):
+    print(f"\n=== Running Test Vector #{vector_id} ===")
+    print(f"Key (hex): {key.hex()}")
+    print(f"IV (hex): {iv.hex()}")
+    print(f"Plaintext: {plaintext}")
 
-    # הדפסה לצורך בדיקה
+    iv, ciphertext, tag = encrypt_message(key, plaintext, iv)
+
     print("Ciphertext (base64):", base64.b64encode(ciphertext).decode())
     print("Tag (base64):", base64.b64encode(tag).decode())
 
-    # פענוח
-    decryptor = Cipher(
-        algorithms.AES(key),
-        modes.GCM(iv, tag)
-    ).decryptor()
-    decrypted = decryptor.update(ciphertext) + decryptor.finalize()
+    decrypted = decrypt_message(key, iv, ciphertext, tag)
+    print("Decrypted:", decrypted)
 
-    print("Decrypted:", decrypted.decode())
-    assert decrypted == plaintext, "Test vector failed!"
-    print("[✓] Test vector passed.")
+    assert decrypted == plaintext, f"Test vector #{vector_id} failed!"
+    print(f"[✓] Test vector #{vector_id} passed.")
 
-def encrypt_message(key, plaintext):
-    iv = os.urandom(12)  # 96-bit nonce for GCM
+def test_vector():
+    vectors = get_test_vectors()
+    for i, vector in enumerate(vectors, start=1):
+        run_test_vector(i, vector["key"], vector["iv"], vector["plaintext"])
+
+def encrypt_message(key, plaintext, iv=None):
+    if iv is None:
+        iv = os.urandom(12)  # 96-bit nonce for GCM
+
     encryptor = Cipher(
         algorithms.AES(key),
         modes.GCM(iv)
@@ -192,4 +218,4 @@ def simulate_communication():
 
 if __name__ == "__main__":
     simulate_communication()
-    run_test_vector()
+    test_vector()
